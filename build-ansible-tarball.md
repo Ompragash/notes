@@ -13,7 +13,7 @@ docker pull python:3.10
 
 Start and exec docker container
 ```bash
-docker run -it –name=ansible-community python:3.10 bash
+docker run -it --name=ansible-community python:3.10 bash
 docker exec -it ansible-community bash
 ```
 
@@ -24,7 +24,7 @@ pip install ansible-core antsibull
 
 Install community.general 
 ```bash
-ansible-galaxy install community.general
+ansible-galaxy collection install community.general
 ```
 
 Clone antsibull repo

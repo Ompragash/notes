@@ -1,0 +1,12 @@
+[Unit]
+Description=Harness Delegate Docker Container
+After=docker.service
+Requires=docker.service
+
+[Service]
+Restart=always
+ExecStart=/usr/bin/docker start -a harness-delegate
+ExecStop=/usr/bin/docker stop -t 2 harness-delegate
+
+[Install]
+WantedBy=multi-user.target

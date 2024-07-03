@@ -1,0 +1,12 @@
+[Unit]
+Description=Drone Runner AWS Docker Container
+After=docker.service
+Requires=docker.service
+
+[Service]
+Restart=always
+ExecStart=-/usr/bin/docker start -a drone-runner-aws
+ExecStop=-/usr/bin/docker stop -t 2 drone-runner-aws
+
+[Install]
+WantedBy=multi-user.target

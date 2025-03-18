@@ -16,7 +16,7 @@ pipeline {
                 script {
                     // Read the trusted file (settings.json in this case) from the cloned repository
                     def configFileContent = readTrusted 'README.md'
-                    echo "Contents of settings.json: \n${configFileContent}"
+                    sh "echo 'Contents of settings.json: \n${configFileContent}'"
                 }
             }
         }
@@ -25,7 +25,7 @@ pipeline {
             steps {
                 script {
                     // Process the data from the settings.json file
-                    echo "Processing the data from the trusted settings.json file..."
+                    sh "echo 'Processing the data from the trusted settings.json file...'"
                     // Perform tasks based on the file content
                 }
             }

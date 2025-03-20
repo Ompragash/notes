@@ -4,19 +4,21 @@ pipeline {
     stages {
         stage('Clone Git Repo') {
             steps {
-                script {
-                    // Clone the repository where your file exists
-                    git url: 'https://github.com/Ompragash/notes.git', branch: 'main'
-                }
+                // Clone the repository
+                git url: 'https://github.com/Ompragash/notes.git', branch: 'main'
             }
         }
 
         stage('Read Trusted File') {
             steps {
                 script {
-                    // Read the trusted file (settings.json in this case) from the cloned repository
-                    def configFileContent = readTrusted 'README.md'
-                    sh "echo 'Contents of settings.json: \n${configFileContent}'"
+                    // Read the trusted file (README.md in this case) from the cloned repository
+                    def fileContent = readTrusted 'README.md'
+                    // Use a shell command to print the file content
+                    sh """
+                        echo "Contents of README.md:"
+                        echo "${fileContent}"
+                    """
                 }
             }
         }
@@ -24,9 +26,9 @@ pipeline {
         stage('Run Tasks Based on File') {
             steps {
                 script {
-                    // Process the data from the settings.json file
-                    sh "echo 'Processing the data from the trusted settings.json file...'"
-                    // Perform tasks based on the file content
+                    // Use a shell command to process or display further messages based on file content
+                    sh "echo 'Processing the data from the trusted README.md file...'"
+                    // Add additional shell commands to perform tasks based on the file content
                 }
             }
         }

@@ -1,6 +1,6 @@
-# Tutorial: harness-devops-cli
+# harness-devops-cli
 
-This project is a **command-line tool** designed to help estimate *future build usage* on the Harness CI platform.
+harness-devops binary is a **command-line tool** designed to help estimate *future build usage* on the Harness CI platform.
 It works by fetching historical build data from your existing CI/CD systems (**Jenkins** or **GitHub Actions**), analyzing this data to understand current usage patterns (like build times and frequency), and then generating a forecast based on configurable parameters like *expected growth*.
 The results are displayed in the console and saved to a report file.
 

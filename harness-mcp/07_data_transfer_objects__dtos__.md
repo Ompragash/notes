@@ -1,240 +1,244 @@
 # Chapter 7: Data Transfer Objects (DTOs)
 
-In [Chapter 6: Scope Handling](06_scope_handling_.md), we saw how `harness-mcp` figures out the correct "address" (Account, Organization, Project) for its operations within the Harness platform. This ensures our [Harness API Client](05_harness_api_client_.md) talks to the right part of Harness. But what about the actual information, the "packages" of data, that are exchanged? When `harness-mcp` asks Harness for pipeline details, or tells Harness to create a pull request, how is that data structured?
+Welcome to Chapter 7! In the [previous chapter on the Harness API Client](06_harness_api_client_.md), we saw how `mcp-server` communicates with the Harness API to send requests and receive responses. But when the Harness API sends back data, like the details of a pull request, it's typically in a format called JSON. How does our Go-based `mcp-server` make sense of this JSON and use it easily? And when `mcp-server` wants to send data to Harness, how does it ensure the data is in the exact format Harness expects? This is where **Data Transfer Objects (DTOs)** come into play.
 
-This is where **Data Transfer Objects (DTOs)** come into play. They are the official "shipping manifests" or "blueprints" for all data moving between `harness-mcp` and Harness.
+## What's the Big Idea? Standardized Shipping Forms for Data
 
-## What's the Data Format? The Problem DTOs Solve
+Imagine you're ordering something online. The online store needs specific information from you: your name, shipping address (street, city, zip code), and what items you want. You fill out a form with clearly labeled fields. This form is a standardized way to transfer your order information to the store.
 
-Imagine our `harness-mcp` server wants to fetch information about a specific pipeline. The [Harness API Client](05_harness_api_client_.md) sends a request to Harness, and Harness replies with details about that pipeline. This data usually arrives in a format called JSON (JavaScript Object Notation), which is text-based and human-readable, but not directly usable by our Go program.
+**Data Transfer Objects (DTOs)** in `mcp-server` are like these standardized forms, but for data. They are Go structures (`structs`) that precisely define the format of data being sent to or received from the Harness API.
 
-```json
-// Example JSON for a pipeline from Harness (simplified)
-{
-  "status": "SUCCESS",
-  "data": {
-    "yamlPipeline": "pipeline:\n  name: My Awesome Pipeline\n  identifier: my_awesome_pipeline\n...",
-    "gitDetails": {
-      "valid": true
-    },
-    "modules": ["ci", "cd"]
-  }
-}
-```
+For example, when `mcp-server` asks Harness for details about a pull request, Harness sends back a JSON object. There's a `PullRequest` DTO in `mcp-server` that exactly matches the structure of this JSON object. This ensures that `mcp-server` and the Harness API are "speaking the same data language."
 
-Our Go server needs to:
-1.  **Understand this JSON**: Know that there's a `status` field, a `data` field, and inside `data`, there's `yamlPipeline`, `gitDetails`, etc.
-2.  **Convert it**: Transform this JSON text into Go data types (like strings, booleans, lists) that the rest of the `harness-mcp` code can work with easily and safely.
+Think of DTOs as:
+*   **Standardized shipping forms:** When sending data (a package) to Harness, you fill out a specific DTO (form) so Harness knows exactly what's inside and how it's organized.
+*   **Blueprints for data:** When receiving data from Harness, a DTO acts as a blueprint, telling `mcp-server` how the data is structured and what to expect.
 
-Similarly, if `harness-mcp` wants to *create* a pull request, it needs to send JSON data *to* Harness in a specific format that Harness expects.
+**Use Case: Getting Pull Request Details**
 
-DTOs solve this by defining Go structures that precisely match these JSON formats.
+Let's say the `get_pull_request` [Tool](03_tools_and_toolsets_.md) wants to fetch details for pull request number 5.
+1.  The [Harness API Client](06_harness_api_client_.md) makes a request to the Harness API.
+2.  Harness API responds with JSON data representing the pull request, including its title, author, state, creation date, etc.
+3.  How does the `mcp-server` take this chunk of JSON text and turn it into something its Go code can easily use, like accessing `pullRequest.Title` or `pullRequest.Author.DisplayName`?
 
-## Data Blueprints: What are DTOs?
+DTOs solve this by providing a clear, structured Go representation of that JSON data.
 
-A **Data Transfer Object (DTO)** in `harness-mcp` is a Go structure (`struct`) that acts as a blueprint for the data exchanged with Harness APIs.
+## Key Concepts: DTOs Unpacked
 
-Think of them like this:
-*   **Standardized Shipping Manifests**: When Harness sends data, the DTO is like a manifest that lists all the items in the shipment (e.g., `pipelineName`, `pipelineID`, `status`) and their types. `harness-mcp` uses this manifest to "unpack" the data correctly.
-*   **Blueprints for Construction**: When `harness-mcp` needs to send data to Harness (like instructions to build a new pull request), it uses a DTO as a blueprint to construct the data package in the exact format Harness expects.
+### 1. What are DTOs?
+DTOs are Go `struct` types. A `struct` in Go is a way to group together different pieces of data (called fields) under a single name.
+*   Each field in a DTO struct corresponds to a piece of data in the JSON (e.g., a `Title` field in the DTO for the "title" in the JSON).
+*   They live in the `client/dto/` directory in `mcp-server` (e.g., `client/dto/pullrequest.go`, `client/dto/pipeline.go`).
 
-Key roles of DTOs:
-*   **Defining Structure**: They clearly define what fields are expected in the data (e.g., a pipeline has an `identifier`, a `name`, `gitDetails`, etc.).
-*   **Enabling Parsing (Unmarshaling)**: When `harness-mcp` receives JSON data from Harness, it uses the corresponding DTO to automatically convert (or "unmarshal") the JSON into a Go struct instance.
-*   **Enabling Formatting (Marshaling)**: When `harness-mcp` needs to send data to Harness, it populates a DTO struct instance with Go data, and then automatically converts (or "marshals") that struct into JSON.
+### 2. Why use DTOs?
+*   **Clarity and Structure:** They make it very clear what data is being exchanged. You can look at a DTO definition and know exactly what fields to expect.
+*   **Type Safety:** Go is a statically-typed language. DTOs ensure that when you access a field, like `pullRequest.Number`, you know it's an integer, not text. This helps catch errors early.
+*   **Easy JSON Conversion:** Go has built-in support for converting JSON to Go structs (and vice-versa) if the structs are defined correctly with special "tags". DTOs are designed for this.
+*   **Consistency:** Ensures that both the `mcp-server` and the Harness API agree on the "shape" of the data.
 
-This ensures that data sent to Harness is correctly structured and that data received from Harness can be reliably understood and used by the server.
+### 3. `json` Tags: The Magic Link
+You'll see things like `json:"title"` next to fields in a DTO struct. These are called "tags". They tell Go's JSON library:
+*   "When you see a JSON key named `title`, put its value into this Go struct field."
+*   "When you're turning this Go struct into JSON, use `title` as the JSON key for this field."
+The `omitempty` part (e.g., `json:"description,omitempty"`) means that if the Go field has its default empty value (like an empty string or zero), it shouldn't be included in the JSON when sending data.
 
-## How DTOs are Used
+## Solving Our Use Case: DTOs for Pull Request Details
 
-DTOs are primarily used by the [Harness API Client](05_harness_api_client_.md) when it interacts with Harness APIs. They live in the `client/dto/` directory of the `harness-mcp` project.
+Let's see how DTOs help when the `get_pull_request` tool fetches details for PR #5.
 
-### 1. Receiving Data from Harness (Unmarshaling)
+1.  **Harness API Sends JSON:**
+    The Harness API might send back JSON looking something like this (simplified):
+    ```json
+    {
+        "number": 5,
+        "title": "Add new feature",
+        "state": "OPEN",
+        "author": {
+            "display_name": "Jane Doe",
+            "email": "jane@example.com"
+        },
+        "created": 1678886400
+    }
+    ```
 
-Let's say the [Harness API Client](05_harness_api_client_.md) fetches pipeline details. Harness returns JSON.
-The API client needs a Go struct blueprint to make sense of this. This blueprint is a DTO, for example, `dto.Entity[dto.PipelineData]`.
+2.  **The `PullRequest` DTO in `mcp-server`:**
+    In `client/dto/pullrequest.go`, there's a Go struct that mirrors this structure:
+    ```go
+    // Simplified from client/dto/pullrequest.go
+    package dto
 
-**The DTO Blueprint (`client/dto/pipeline.go`):**
-Here's a very simplified version of what `dto.PipelineData` and its container `dto.Entity` might look like. Notice the `json:"..."` tags – these tell Go's JSON library how to map JSON fields to struct fields.
+    // PullRequest represents a pull request in the system
+    type PullRequest struct {
+        Number            int               `json:"number,omitempty"`
+        Title             string            `json:"title,omitempty"`
+        State             string            `json:"state,omitempty"`
+        Author            PullRequestAuthor `json:"author,omitempty"` // Another DTO!
+        Created           int64             `json:"created,omitempty"`
+        // ... many other fields ...
+    }
 
-```go
-// Simplified from client/dto/pipeline.go
+    // PullRequestAuthor represents a user in the pull request system
+    type PullRequestAuthor struct {
+        DisplayName string `json:"display_name,omitempty"`
+        Email       string `json:"email,omitempty"`
+        // ... other fields ...
+    }
+    ```
+    *   Notice how `PullRequest` has fields like `Number`, `Title`, and `State`.
+    *   The `json:"..."` tags match the keys in the JSON (`"number"`, `"title"`).
+    *   The `Author` field is itself another DTO, `PullRequestAuthor`, because the author information is a nested JSON object.
 
-package dto
+3.  **[Harness API Client](06_harness_api_client_.md) Uses the DTO:**
+    As we saw in Chapter 6, the [Harness API Client](06_harness_api_client_.md)'s `unmarshalResponse` function takes the JSON data and the DTO type:
+    ```go
+    // Conceptual: inside the API client when it gets a PR
+    var prData dto.PullRequest // Create an empty PullRequest DTO
+    // jsonData is the raw JSON bytes from Harness API
+    // json.Unmarshal will fill prData based on jsonData and the json tags
+    err := json.Unmarshal(jsonData, &prData)
+    if err != nil {
+        // Handle error
+    }
+    // Now, prData is a Go struct filled with data from the JSON!
+    ```
 
-// Entity is a generic container for API responses
-type Entity[T any] struct {
-	Status string `json:"status,omitempty"` // e.g., "SUCCESS"
-	Data   T      `json:"data,omitempty"`   // The actual data payload
-}
+4.  **Tool Uses the Populated DTO:**
+    The `get_pull_request` tool receives this `prData` (a populated `dto.PullRequest` struct) from the API Client. Now it can access the information in a type-safe Go way:
+    ```go
+    // Inside the get_pull_request tool's handler
+    // prData is the dto.PullRequest struct returned by the API client
+    fmt.Printf("PR Number: %d\n", prData.Number)       // Accesses the integer PR number
+    fmt.Printf("PR Title: %s\n", prData.Title)         // Accesses the string title
+    fmt.Printf("Author Name: %s\n", prData.Author.DisplayName) // Accesses nested data
+    ```
+    No more dealing with raw JSON strings! The DTO has made the data structured and easy to use.
 
-// PipelineData represents the core data of a pipeline
-type PipelineData struct {
-	YamlPipeline string     `json:"yamlPipeline,omitempty"`
-	GitDetails   GitDetails `json:"gitDetails,omitempty"`
-	// ... other fields like Modules, StoreType ...
-}
+## Under the Hood: How DTOs Work with JSON
 
-// GitDetails nested within PipelineData
-type GitDetails struct {
-	Valid       bool   `json:"valid,omitempty"`
-	InvalidYaml string `json:"invalidYaml,omitempty"`
-}
-```
-*   `Entity[T any]`: This is a generic struct often used by Harness APIs. `T` can be any type, like `PipelineData`.
-*   `PipelineData`: Defines fields like `YamlPipeline` (a string) and `GitDetails` (another struct).
-*   `json:"yamlPipeline,omitempty"`: This "tag" tells Go's JSON package:
-    *   When reading JSON, look for a field named `yamlPipeline` and put its value into the `YamlPipeline` struct field.
-    *   When writing this struct to JSON, use `yamlPipeline` as the JSON field name.
-    *   `omitempty` means if the Go struct field has its zero value (e.g., empty string for a string), don't include it in the JSON output (useful when sending data).
+The process of turning JSON into Go structs (called "unmarshaling") or Go structs into JSON (called "marshaling") is handled by Go's standard `encoding/json` package. DTOs are designed to work seamlessly with this package.
 
-**The "Unpacking" Process (Unmarshaling):**
-When the [Harness API Client](05_harness_api_client_.md) receives the JSON response for pipeline details, it does something like this (simplified from `client/client.go`'s `Get` method):
+### Step-by-Step: JSON to DTO (Unmarshaling)
 
-```go
-// Simplified: Inside the API Client's Get method
-var pipelineResponse dto.Entity[dto.PipelineData] // Create an empty DTO instance
+1.  **Receive JSON:** The [Harness API Client](06_harness_api_client_.md) receives JSON data as a stream of bytes from the Harness API.
+2.  **Prepare DTO Instance:** The client creates an empty instance of the corresponding DTO struct (e.g., `var pr dto.PullRequest`).
+3.  **Call `json.Unmarshal`:** The client calls `json.Unmarshal(jsonDataBytes, &pr)`.
+4.  **Go's JSON Magic:** The `json.Unmarshal` function:
+    *   Reads the JSON data.
+    *   Looks at the fields of the `dto.PullRequest` struct.
+    *   For each field, it checks its `json:"..."` tag to find the matching JSON key.
+    *   It takes the value from the JSON for that key and puts it into the Go struct field, converting the type if necessary (e.g., JSON number to Go `int`).
+    *   If there are nested DTOs (like `PullRequestAuthor`), it does this process recursively.
+5.  **Populated DTO:** If successful, the `pr` variable now holds all the data from the JSON, neatly organized.
 
-// httpResp.Body contains the JSON data from Harness
-// json.NewDecoder(...).Decode(...) reads the JSON and fills 'pipelineResponse'
-err := json.NewDecoder(httpResp.Body).Decode(&pipelineResponse)
-if err != nil {
-    // Handle error: the JSON didn't match the DTO blueprint!
-}
-
-// Now, 'pipelineResponse' is filled with data!
-// We can access it like:
-// pipelineYAML := pipelineResponse.Data.YamlPipeline
-// isGitValid := pipelineResponse.Data.GitDetails.Valid
-```
-The `json.Decode(&pipelineResponse)` line is where the magic happens. Go's JSON library uses the `dto.Entity[dto.PipelineData]` blueprint to parse the incoming JSON and populate the `pipelineResponse` variable.
-
-### 2. Sending Data to Harness (Marshaling)
-
-Now, let's say a tool in `harness-mcp` wants to create a new pull request. It needs to construct the data in the format Harness expects.
-
-**The DTO Blueprint (`client/dto/pullrequest.go`):**
-A DTO like `dto.CreatePullRequest` defines the blueprint for the data needed to create a PR.
-
-```go
-// Simplified from client/dto/pullrequest.go
-package dto
-
-// CreatePullRequest defines the data needed to create a new pull request
-type CreatePullRequest struct {
-	Title        string `json:"title"`                 // Mandatory
-	Description  string `json:"description,omitempty"` // Optional
-	SourceBranch string `json:"source_branch"`         // Mandatory
-	TargetBranch string `json:"target_branch"`         // Mandatory
-}
-```
-
-**The "Packing" Process (Marshaling):**
-A tool (e.g., `CreatePullRequestTool`) would first create an instance of this DTO and fill it:
-
-```go
-// Simplified: Inside a tool handler
-prData := dto.CreatePullRequest{
-	Title:        "Add New Super Feature",
-	SourceBranch: "feature/super",
-	TargetBranch: "main",
-	Description:  "This feature does amazing things!",
-}
-
-// Now, the API Client needs to send this to Harness.
-// It will convert 'prData' into JSON.
-// Simplified from client/client.go's Post method:
-jsonData, err := json.Marshal(prData)
-if err != nil {
-    // Handle error
-}
-
-// 'jsonData' now contains a byte slice of JSON:
-// {
-//   "title": "Add New Super Feature",
-//   "source_branch": "feature/super",
-//   "target_branch": "main",
-//   "description": "This feature does amazing things!"
-// }
-// This JSON is then sent in the HTTP request body to Harness.
-```
-The `json.Marshal(prData)` call converts the Go `prData` struct into a JSON string, following the blueprint defined by `dto.CreatePullRequest` and its `json` tags.
-
-## Under the Hood: How DTOs Facilitate Data Exchange
-
-Let's visualize the flow when `harness-mcp` fetches pipeline information using a DTO.
+### Sequence Diagram: JSON to DTO
 
 ```mermaid
 sequenceDiagram
-    participant Tool as Tool Handler (e.g., GetPipeline)
+    participant HarnessAPI as Harness API
     participant APIClient as Harness API Client
-    participant GoJSONLib as Go JSON Library (encoding/json)
-    participant HarnessAPI as Harness API Server
+    participant GoJSONLib as Go encoding/json lib
+    participant PR_DTO as dto.PullRequest Struct Instance
+    participant Tool as mcp-server Tool
 
-    Tool->>APIClient: Request pipeline details (pipelineID, scope)
-    Note over APIClient: APIClient prepares to call Harness
-
-    APIClient->>HarnessAPI: HTTP GET request to /pipeline/api/pipelines/{pipelineID}?scopeParams
-    HarnessAPI-->>APIClient: HTTP Response with JSON body (e.g., `{"status":"SUCCESS", "data":{...}}`)
-
-    Note over APIClient: APIClient needs to parse this JSON.
-    Note over APIClient: It creates an empty `dto.Entity[dto.PipelineData]` variable.
-
-    APIClient->>GoJSONLib: Decode(JSON_from_response, &empty_pipeline_dto_var)
-    GoJSONLib->>GoJSONLib: Reads JSON, uses `json` tags in DTO to map fields
-    GoJSONLib-->>APIClient: Returns populated `pipeline_dto_var` (or error)
-
-    APIClient-->>Tool: Returns the populated DTO (e.g., `pipelineResponse.Data`)
-    Tool->>Tool: Now has structured Go data to work with!
+    HarnessAPI->>APIClient: Sends Pull Request JSON (e.g., {"title": "Fix bug", "number": 101})
+    APIClient->>GoJSONLib: json.Unmarshal(jsonBytes, &empty_pr_dto_instance)
+    Note over GoJSONLib: Reads "title" from JSON, matches to PR_DTO.Title via json tag.
+    GoJSONLib-->>PR_DTO: Populates PR_DTO.Title = "Fix bug"
+    Note over GoJSONLib: Reads "number" from JSON, matches to PR_DTO.Number.
+    GoJSONLib-->>PR_DTO: Populates PR_DTO.Number = 101
+    GoJSONLib-->>APIClient: Returns (nil error if successful)
+    APIClient-->>Tool: Provides populated PR_DTO instance
+end
 ```
 
-The DTOs themselves are just Go struct definitions. You can find them in the `client/dto/` directory. For example:
-*   `client/dto/pipeline.go`: Contains DTOs related to pipelines, like `PipelineData`, `PipelineListItem`, `PipelineExecution`.
-*   `client/dto/pullrequest.go`: Contains DTOs for pull requests, like `PullRequest`, `CreatePullRequest`, `PullRequestCheck`.
-*   `client/dto/repositories.go`: For repository information, like `Repository`.
-*   `client/dto/common.go` (or similar, if it exists, sometimes common structures like `ErrorResponse` or pagination info are here, though in `harness-mcp` they might be within specific files like `pipeline.go` for `ListOutput`).
+### DTOs for Sending Data (Marshaling)
 
-Let's look at a small snippet from `client/dto/pullrequest.go` to see more DTOs.
-```go
-// From client/dto/pullrequest.go
-package dto
+DTOs are also used when `mcp-server` needs to *send* structured data to the Harness API, for example, when creating a new pull request.
 
-// PullRequest represents a pull request in the system
-type PullRequest struct {
-	Number       int               `json:"number,omitempty"`
-	Title        string            `json:"title,omitempty"`
-	State        string            `json:"state,omitempty"` // e.g., "OPEN", "MERGED", "CLOSED"
-	SourceBranch string            `json:"source_branch,omitempty"`
-	TargetBranch string            `json:"target_branch,omitempty"`
-	Author       PullRequestAuthor `json:"author,omitempty"` // Nested DTO
-	Created      int64             `json:"created,omitempty"` // Timestamp
-	// ... many other fields ...
-}
+1.  **Tool Prepares DTO:** The `create_pull_request` tool would populate a DTO, like `dto.CreatePullRequest`, with the necessary information (title, source branch, target branch).
+    ```go
+    // Simplified from client/dto/pullrequest.go
+    // CreatePullRequest represents the request body for creating a new pull request
+    type CreatePullRequest struct {
+        Title        string `json:"title"` // Note: no omitempty, title is usually required
+        Description  string `json:"description,omitempty"`
+        SourceBranch string `json:"source_branch"`
+        TargetBranch string `json:"target_branch,omitempty"`
+        IsDraft      bool   `json:"is_draft,omitempty"`
+    }
 
-// PullRequestAuthor represents a user in the pull request system
-type PullRequestAuthor struct {
-	DisplayName string `json:"display_name,omitempty"`
-	Email       string `json:"email,omitempty"`
-	UID         string `json:"uid,omitempty"`
-	// ... other fields ...
-}
-```
-These structs are designed to precisely mirror the JSON structure that the Harness Code Repository module (for pull requests) sends and receives. The `json` tags are critical for the Go `encoding/json` package to automatically handle the conversion.
+    // In the create_pull_request tool:
+    newPRInfo := dto.CreatePullRequest{
+        Title:        "My New Feature",
+        SourceBranch: "feature/new-thing",
+        TargetBranch: "main",
+    }
+    ```
 
-## Why are DTOs Important?
+2.  **API Client Converts DTO to JSON:** The [Harness API Client](06_harness_api_client_.md) would then use `json.Marshal(newPRInfo)` to convert this Go struct into a JSON byte stream.
+    ```go
+    // Conceptual: inside the API client before sending a create PR request
+    // jsonDataBytes will be something like:
+    // {"title":"My New Feature","source_branch":"feature/new-thing","target_branch":"main"}
+    jsonDataBytes, err := json.Marshal(newPRInfo)
+    // ... then send jsonDataBytes in the HTTP request body
+    ```
 
-Using DTOs provides several key benefits:
+3.  **Send JSON to Harness:** The API client sends this JSON data in the body of an HTTP POST request to the Harness API.
 
-1.  **Type Safety**: Go is a statically-typed language. DTOs bring this safety to API interactions. When you unmarshal JSON into a DTO, if the JSON is malformed or a field is of the wrong type (e.g., a string where a number is expected based on the DTO), the Go JSON library will often report an error. The Go compiler can also catch errors if you try to access a field on a DTO that doesn't exist (e.g., `myPipeline.NonExistentField`).
-2.  **Clarity and Documentation**: DTOs serve as clear, code-based documentation for the data structures. By looking at a DTO like `dto.PipelineData`, a developer can quickly understand what information a pipeline object contains.
-3.  **Ease of Use (Developer Experience)**: Manually parsing complex JSON is tedious and error-prone. DTOs, combined with Go's `encoding/json` package, make this process almost automatic and much more robust.
-4.  **Consistency**: They ensure that both `harness-mcp` (the client) and Harness (the server) have a shared understanding of the data format, reducing misinterpretations.
-5.  **Refactoring and Maintenance**: If the Harness API changes a field name or data type, you often only need to update the DTO in `harness-mcp`. The Go compiler can then help identify parts of the code that need adjustment, making maintenance easier.
+This ensures the data sent to Harness is always in the correct format that the API expects.
+
+### Where to Find DTOs
+
+All DTOs used for communicating with the Harness API are located in the `client/dto/` directory. You'll find files like:
+*   `client/dto/pipeline.go`: For pipelines, executions, etc.
+    ```go
+    // Snippet from client/dto/pipeline.go
+    package dto
+
+    // PipelineListItem represents an item in the pipeline list
+    type PipelineListItem struct {
+        Name                 string                 `json:"name,omitempty"`
+        Identifier           string                 `json:"identifier,omitempty"`
+        Description          string                 `json:"description,omitempty"`
+        // ... many other fields ...
+        ExecutionSummaryInfo ExecutionSummaryInfo   `json:"executionSummaryInfo,omitempty"`
+    }
+    ```
+    This `PipelineListItem` DTO is used when the `list_pipelines` tool gets a list of pipelines. Each item in the list will be parsed into this struct.
+
+*   `client/dto/pullrequest.go`: For pull requests, their authors, checks, etc. (as seen above).
+*   `client/dto/repositories.go`: For repository information.
+*   `client/dto/error.go`: For a standard error response format from the API.
+    ```go
+    // Snippet from client/dto/error.go
+    package dto
+
+    // ErrorResponse represents the standard error response format
+    type ErrorResponse struct {
+        Code    string `json:"code,omitempty"`
+        Message string `json:"message,omitempty"`
+    }
+    ```
+    If the Harness API returns an error in a structured JSON format, this DTO can be used to parse it.
+
+*   `client/dto/scope.go`: Not strictly for API data transfer, but a DTO used internally to pass [Scope](04_scope_management__account__org__project_.md) information.
+
+By examining these files, you can understand the "shape" of the data that `mcp-server` expects from or sends to Harness for various entities.
 
 ## Conclusion
 
-Data Transfer Objects (DTOs) are the unsung heroes that make communication between `harness-mcp` and the Harness APIs smooth and reliable. They act as precise blueprints or "shipping manifests" for the data, defining the expected structure with Go structs and `json` tags. This allows `harness-mcp` to easily convert JSON data from Harness into usable Go objects (unmarshaling) and to convert Go objects into the correct JSON format for sending data to Harness (marshaling).
+Data Transfer Objects (DTOs) are the unsung heroes that make communication between `mcp-server` and the Harness API smooth, reliable, and type-safe. They act as precise blueprints or standardized forms for data, ensuring that both systems understand the structure of the information being exchanged.
 
-By defining the "what" (the data structures) of API communication, DTOs complement the "where" (from [Chapter 6: Scope Handling](06_scope_handling_.md)) and the "how" (from the [Harness API Client](05_harness_api_client_.md)), ensuring that `harness-mcp` can effectively interact with the full breadth of Harness functionalities.
+Whenever the [Harness API Client](06_harness_api_client_.md) fetches data, DTOs help parse the incoming JSON into usable Go structs. When it sends data, DTOs help construct the JSON payload in the exact format Harness expects. This structured approach is fundamental to the robustness of `mcp-server`.
 
-This chapter concludes our core journey through the `harness-mcp` project's fundamental concepts! You've learned about its Tools and Toolsets, the MCP Server Core, how it's launched and configured, how it communicates with Harness APIs, how it handles scope, and now, how it manages the data structures for those communications. With this foundation, you're well-equipped to understand how `harness-mcp` works and potentially contribute to its development.
+This chapter concludes our journey through the core concepts of the `mcp-server`! We've covered:
+*   The [MCP Server Core](01_mcp_server_core_.md) and how it processes requests.
+*   [Configuration Management](02_configuration_management_.md) for setting up the server.
+*   [Tools and Toolsets](03_tools_and_toolsets_.md) that define the server's capabilities.
+*   [Scope Management](04_scope_management__account__org__project_.md) for targeting the right Harness resources.
+*   [Tool Parameter Handling](05_tool_parameter_handling_.md) for providing specific instructions to tools.
+*   The [Harness API Client](06_harness_api_client_.md) that communicates with Harness.
+*   And finally, DTOs, which structure the data for those communications.
+
+With this knowledge, you're well-equipped to understand the architecture and inner workings of the `mcp-server` project. Happy exploring!

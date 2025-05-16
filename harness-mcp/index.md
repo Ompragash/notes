@@ -1,9 +1,8 @@
-# Tutorial: harness-mcp
+# Tutorial: mcp-server
 
-The `harness-mcp` project provides a **server** that implements the *Model Context Protocol (MCP)*.
-This server acts as an intermediary, allowing AI assistants or other MCP-compatible clients to interact with various **Harness platform APIs**.
-It achieves this by exposing specific Harness functionalities, such as managing pipelines, pull requests, or repositories, as invokable **tools**.
-This enables developers and tools to automate tasks and integrate with Harness features through a standardized communication protocol.
+The `mcp-server` project is a **server application** designed to let other programs, like AI assistants, easily interact with the *Harness platform*.
+It works by listening for requests written in a specific format (the **Model Context Protocol** or MCP).
+When it gets a request, it uses one of its built-in **Tools**—like a tool to 'get pipeline details' or 'list pull requests'—to perform the requested action in Harness and then sends back the result.
 
 
 **Source Repository:** [None](None)
@@ -14,40 +13,39 @@ flowchart TD
 "]
     A1["Harness API Client
 "]
-    A2["Tools & Toolsets
+    A2["Tools and Toolsets
 "]
-    A3["Server Configuration
+    A3["Configuration Management
 "]
     A4["Data Transfer Objects (DTOs)
 "]
-    A5["Scope Handling
+    A5["Scope Management (Account, Org, Project)
 "]
-    A6["Command-Line Interface (CLI) & Initialization
+    A6["Tool Parameter Handling
 "]
-    A6 -- "Loads Configuration" --> A3
-    A6 -- "Initializes Server" --> A0
-    A3 -- "Configures Server" --> A0
-    A3 -- "Provides Credentials & Endp..." --> A1
-    A0 -- "Registers & Invokes Tools" --> A2
-    A2 -- "Uses API Client" --> A1
-    A2 -- "Uses Scope for Context" --> A5
-    A1 -- "Uses DTOs for Data Exchange" --> A4
-    A1 -- "Applies Scope to API Calls" --> A5
+    A0 -- "Invokes" --> A2
+    A2 -- "Uses for API calls" --> A1
+    A1 -- "Uses for data exchange" --> A4
+    A3 -- "Configures" --> A0
+    A2 -- "Uses for input processing" --> A6
+    A5 -- "Gets request parameters via" --> A6
+    A1 -- "Uses determined scope" --> A5
+    A3 -- "Provides default scope" --> A5
 ```
 
 ## Chapters
 
-1. [Tools & Toolsets
-](01_tools___toolsets_.md)
-2. [MCP Server Core
-](02_mcp_server_core_.md)
-3. [Command-Line Interface (CLI) & Initialization
-](03_command_line_interface__cli____initialization_.md)
-4. [Server Configuration
-](04_server_configuration_.md)
-5. [Harness API Client
-](05_harness_api_client_.md)
-6. [Scope Handling
-](06_scope_handling_.md)
+1. [MCP Server Core
+](01_mcp_server_core_.md)
+2. [Configuration Management
+](02_configuration_management_.md)
+3. [Tools and Toolsets
+](03_tools_and_toolsets_.md)
+4. [Scope Management (Account, Org, Project)
+](04_scope_management__account__org__project__.md)
+5. [Tool Parameter Handling
+](05_tool_parameter_handling_.md)
+6. [Harness API Client
+](06_harness_api_client_.md)
 7. [Data Transfer Objects (DTOs)
 ](07_data_transfer_objects__dtos__.md)

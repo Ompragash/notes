@@ -6,3 +6,7 @@ Replace ORGANIZATION with the GitHub Organization name
 OR https://github.com/pulls?user=ORGANIZATION
 
 - Get the count of all CPU's: `sysctl -n hw.ncpu`
+
+## Links:
+
+- [devhints.io](https://devhints.io/) - collection of cheatsheets for Devs
